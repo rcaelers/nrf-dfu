@@ -52,8 +52,13 @@ func cmdPrepare(c *cli.Context) error {
 	}
 	fmt.Printf("Preparing for firmware upgrade of %s\n", addr)
 
-	// TODO:
-	//ble := NewBleClient()
+	ble := NewBleClient()
+	dfu := NewDfu(ble)
+
+	err := dfu.EnterBootloader(addr)
+	if err != nil {
+		return errors.Wrap(err, "failed to boot device into DFU mode")
+	}
 
 	return nil
 }
@@ -120,9 +125,9 @@ func main() {
 			Flags:   []cli.Flag{flgAddr, flgFWFilenme},
 		},
 		{
-			Name:    "bootloader",
+			Name:    "boot",
 			Aliases: []string{"b"},
-			Usage:   "Prepare bootloader for DFU",
+			Usage:   "Boot device into DFU mode",
 			Action:  cmdPrepare,
 			Flags:   []cli.Flag{flgAddr},
 		},

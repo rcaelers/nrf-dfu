@@ -39,8 +39,8 @@ type BleCentral interface {
 	Connect(address string) error
 	Disconnect() error
 	WriteCharacteristic(uuid string, data []byte, noresp bool) error
-	Subscribe(uuid string, f func([]byte)) error
-	Unsubscribe(uuid string) error
+	Subscribe(uuid string, indication bool, f func([]byte)) error
+	Unsubscribe(uuid string, indication bool) error
 	Scan(handler BleAdvertisementHandler) error
 }
 
@@ -120,14 +120,14 @@ func (b *bleClient) WriteCharacteristic(uuid string, data []byte, noresp bool) (
 	return
 }
 
-func (b *bleClient) Subscribe(uuid string, f func([]byte)) (err error) {
+func (b *bleClient) Subscribe(uuid string, indication bool, f func([]byte)) (err error) {
 	if !b.connected {
 		return errors.Wrap(err, "not connected")
 	}
 
 	bleUuid, _ := ble.Parse(uuid)
 	if c := b.profile.Find(ble.NewCharacteristic(bleUuid)); c != nil {
-		err = b.client.Subscribe(c.(*ble.Characteristic), false, f)
+		err = b.client.Subscribe(c.(*ble.Characteristic), indication, f)
 		if err != nil {
 			return errors.Wrap(err, "failed to subscribe to BLE characteric value changes")
 		}
@@ -136,14 +136,14 @@ func (b *bleClient) Subscribe(uuid string, f func([]byte)) (err error) {
 	return
 }
 
-func (b *bleClient) Unsubscribe(uuid string) (err error) {
+func (b *bleClient) Unsubscribe(uuid string, indication bool) (err error) {
 	if !b.connected {
 		return errors.Wrap(err, "not connected")
 	}
 
 	bleUuid, _ := ble.Parse(uuid)
 	if c := b.profile.Find(ble.NewCharacteristic(bleUuid)); c != nil {
-		err = b.client.Unsubscribe(c.(*ble.Characteristic), false)
+		err = b.client.Unsubscribe(c.(*ble.Characteristic), indication)
 		if err != nil {
 			return errors.Wrap(err, "failed to unsubscribe to BLE characteris value changes")
 		}

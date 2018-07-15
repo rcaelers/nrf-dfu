@@ -8,7 +8,9 @@ Tested on macOS with a SparkFun nRF52832 Breakout board.
 
 ### TODO
 
-- [ ] Support buttonless bootloader
+- [X] Support unbonded buttonless bootloader
+- [ ] Support bonded buttonless bootloader
+- [ ] Automatically boot device into DFU mode and perform upgrade
 - [ ] Make scan duration configurable
 - [X] Report progress
 - [ ] Remove duplicates when scanning

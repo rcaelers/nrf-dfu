@@ -81,9 +81,11 @@ const (
 )
 
 const (
-	dfuServiceUUID      = "fe59"
-	dfuControlPointUUID = "8ec90001-f315-4f60-9fb8-838830daea50"
-	dfuPacketUUID       = "8ec90002-f315-4f60-9fb8-838830daea50"
+	dfuServiceUUID          = "fe59"
+	dfuControlPointUUID     = "8ec90001-f315-4f60-9fb8-838830daea50"
+	dfuPacketUUID           = "8ec90002-f315-4f60-9fb8-838830daea50"
+	dfuButtonlessUUID       = "8ec90003-f315-4f60-9fb8-838830daea50"
+	dfuButtonlessBondedUUID = "8ec90004-f315-4f60-9fb8-838830daea50"
 )
 
 type SelectResponse struct {
@@ -332,13 +334,13 @@ func (dfu *Dfu) Update(address string, filename string, progress DfuProgress) er
 	}
 	defer dfu.ble.Disconnect()
 
-	err = dfu.ble.Subscribe(dfuControlPointUUID, func(data []byte) {
+	err = dfu.ble.Subscribe(dfuControlPointUUID, false, func(data []byte) {
 		dfu.responseChannel <- data
 	})
 	if err != nil {
 		return errors.Wrap(err, "failed to subscribe to control characteristic")
 	}
-	defer dfu.ble.Unsubscribe(dfuControlPointUUID)
+	defer dfu.ble.Unsubscribe(dfuControlPointUUID, false)
 
 	dfu.progress = progress
 
@@ -354,4 +356,27 @@ func (dfu *Dfu) Update(address string, filename string, progress DfuProgress) er
 
 	return err
 
+}
+
+func (dfu *Dfu) EnterBootloader(address string) error {
+
+	err := dfu.ble.Connect(address)
+	if err != nil {
+		return errors.Wrap(err, "failed to connect to device")
+	}
+	defer dfu.ble.Disconnect()
+
+	err = dfu.ble.Subscribe(dfuButtonlessUUID, true, func(data []byte) {
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to subscribe to control characteristic")
+	}
+
+	data := []byte{0x01}
+	err = dfu.ble.WriteCharacteristic(dfuButtonlessUUID, data, true)
+	if err != nil {
+		return errors.Wrap(err, "failed to switch to bootloader")
+	}
+
+	return err
 }
