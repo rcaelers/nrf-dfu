@@ -388,17 +388,41 @@ func (dfu *Dfu) EnterBootloader(address string, timeout time.Duration) error {
 		return errors.Wrap(err, "DFU Characteristic not found")
 	}
 
+	responseChannel := make(chan []byte)
+
 	err = characteristic.Subscribe(true, func(data []byte) {
+		responseChannel <- data
 	})
 	if err != nil {
 		return errors.Wrap(err, "failed to subscribe to control characteristic")
 	}
 
 	data := []byte{0x01}
+	// TODO: this should be WITH reponse, but the buttonless bootloader service doesn't accept it...
 	err = characteristic.WriteCharacteristic(data, true)
 	if err != nil {
 		return errors.Wrap(err, "failed to switch to bootloader")
 	}
+
+	/* TODO: Requires sending with reponse
+	response := <-responseChannel
+	responseCode := response[0]
+	responseOpCode := response[1]
+	resultCode := dfuResult(response[2])
+
+	if responseCode != 0x20 {
+		return errors.Wrap(err, "Received incorrect response code")
+	}
+	if responseOpCode != 0x01 {
+		return errors.Wrap(err, "Received response for incorrect operation")
+	}
+	if resultCode != DFU_RESULT_SUCCESS {
+		return errors.Wrap(err, "DFU control operation failed")
+	}
+	*/
+
+	// TODO: Hack to wait for reponse...
+	time.Sleep(500 * time.Millisecond)
 
 	return err
 }
