@@ -128,7 +128,7 @@ func (b *bleClient) Unsubscribe(uuid string, indication bool) (err error) {
 	return
 }
 
-func (b *bleClient) handleAdvertisement(handler BleAdvertisementHandler) ble.AdvHandler {
+func (b *bleClient) handleAdvertisement(handler AdvertisementHandler) ble.AdvHandler {
 	return func(a ble.Advertisement) {
 		services := []string{}
 		for _, s := range a.Services() {
@@ -139,7 +139,7 @@ func (b *bleClient) handleAdvertisement(handler BleAdvertisementHandler) ble.Adv
 	}
 }
 
-func (b *bleClient) Scan(duration time.Duration, handler BleAdvertisementHandler) (err error) {
+func (b *bleClient) Scan(duration time.Duration, handler AdvertisementHandler) (err error) {
 	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(), duration))
 
 	err = ble.Scan(ctx, false, b.handleAdvertisement(handler), nil)

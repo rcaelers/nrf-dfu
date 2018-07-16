@@ -24,7 +24,7 @@ import (
 	"time"
 )
 
-type BleAdvertisementHandler func(adv Advertisement)
+type AdvertisementHandler func(adv Advertisement)
 
 type Advertisement struct {
 	Addr     string
@@ -38,5 +38,5 @@ type Client interface {
 	WriteCharacteristic(uuid string, data []byte, noresp bool) error
 	Subscribe(uuid string, indication bool, f func([]byte)) error
 	Unsubscribe(uuid string, indication bool) error
-	Scan(duration time.Duration, handler BleAdvertisementHandler) error
+	Scan(duration time.Duration, handler AdvertisementHandler) error
 }
