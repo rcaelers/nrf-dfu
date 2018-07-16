@@ -22,6 +22,7 @@ package ble
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-ble/ble"
 	"github.com/pkg/errors"
 	"time"
@@ -143,6 +144,14 @@ func (b *bleClient) Scan(duration time.Duration, handler AdvertisementHandler) (
 	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(), duration))
 
 	err = ble.Scan(ctx, false, b.handleAdvertisement(handler), nil)
+
+	switch errors.Cause(err) {
+	case context.DeadlineExceeded:
+		return nil
+	case context.Canceled:
+		fmt.Printf("Canceled..\n")
+		return nil
+	}
 	if err != nil {
 		return errors.Wrap(err, "failed to start BLE scan")
 	}
