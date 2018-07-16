@@ -9,11 +9,12 @@ Tested on macOS with a SparkFun nRF52832 Breakout board.
 ### TODO
 
 - [X] Support unbonded buttonless bootloader
-- [ ] Support bonded buttonless bootloader
+- [X] Support bonded buttonless bootloader
 - [ ] Automatically boot device into DFU mode and perform upgrade
 - [X] Make scan duration configurable
 - [X] Report progress
 - [ ] Remove duplicates when scanning
 - [ ] Test on Linux
-- [ ] Remove sleep-hack
+- [ ] Remove sleep hack when sending firmware
+- [ ] Remove enter DFU mode hack
 - [ ] ...
