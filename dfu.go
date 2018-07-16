@@ -322,14 +322,14 @@ func (dfu *Dfu) transfer(objectType byte, file *zip.File) (err error) {
 	return
 }
 
-func (dfu *Dfu) Update(address string, filename string, progress DfuProgress) error {
+func (dfu *Dfu) Update(address string, filename string, timeout time.Duration, progress DfuProgress) error {
 	err := dfu.readFirmwareArchive(filename)
 	if err != nil {
 		return errors.Wrap(err, "failed to open firmware file")
 	}
 	defer dfu.firmwareZipFile.Close()
 
-	err = dfu.bleClient.Connect(address)
+	err = dfu.bleClient.Connect(address, timeout)
 	if err != nil {
 		return errors.Wrap(err, "failed to connect to device")
 	}
@@ -359,9 +359,9 @@ func (dfu *Dfu) Update(address string, filename string, progress DfuProgress) er
 
 }
 
-func (dfu *Dfu) EnterBootloader(address string) error {
+func (dfu *Dfu) EnterBootloader(address string, timeout time.Duration) error {
 
-	err := dfu.bleClient.Connect(address)
+	err := dfu.bleClient.Connect(address, timeout)
 	if err != nil {
 		return errors.Wrap(err, "failed to connect to device")
 	}

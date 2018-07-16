@@ -54,8 +54,8 @@ func NewGoBleClient(init GoBleInitFunc) (*bleClient, error) {
 	}, nil
 }
 
-func (b *bleClient) Connect(address string) (err error) {
-	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(), 30*time.Second))
+func (b *bleClient) Connect(address string, timeout time.Duration) (err error) {
+	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(), timeout))
 
 	b.client, err = ble.Dial(ctx, ble.NewAddr(address))
 	if err != nil {

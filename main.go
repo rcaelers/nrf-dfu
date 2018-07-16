@@ -65,7 +65,7 @@ func cmdPrepare(c *cli.Context) error {
 
 	dfu := NewDfu(bleClient)
 
-	err = dfu.EnterBootloader(addr)
+	err = dfu.EnterBootloader(addr, c.Duration("timeout"))
 	if err != nil {
 		return errors.Wrap(err, "failed to boot device into DFU mode")
 	}
@@ -104,7 +104,7 @@ func cmdDfu(c *cli.Context) error {
 
 	bar := pb.ProgressBarTemplate(`{{ white "DFU:" }} {{bar . | green}} {{speed . "%s byte/s" | white }}`).Start(100)
 
-	err = dfu.Update(addr, fw, dfuProgress(bar))
+	err = dfu.Update(addr, fw, c.Duration("timeout"), dfuProgress(bar))
 	if err != nil {
 		return errors.Wrap(err, "can't upgrade firmware")
 	}
@@ -124,6 +124,7 @@ func main() {
 	flgAddr := cli.StringFlag{Name: "addr, a", Usage: "Address of device to be upgraded"}
 	flgFWFilenme := cli.StringFlag{Name: "fw, f", Usage: "Filename of the firmware archive"}
 	flgScanDuration := cli.DurationFlag{Name: "duration, d", Value: time.Second * 30, Usage: "Duration of the BLE scan"}
+	flgTimeout := cli.DurationFlag{Name: "timeout, t", Value: time.Second * 30, Usage: "Timeout for operation"}
 
 	app.Commands = []cli.Command{
 		{
@@ -138,14 +139,14 @@ func main() {
 			Aliases: []string{"d"},
 			Usage:   "Perform device firmware upgrade",
 			Action:  cmdDfu,
-			Flags:   []cli.Flag{flgAddr, flgFWFilenme},
+			Flags:   []cli.Flag{flgAddr, flgFWFilenme, flgTimeout},
 		},
 		{
 			Name:    "boot",
 			Aliases: []string{"b"},
 			Usage:   "Boot device into DFU mode",
 			Action:  cmdPrepare,
-			Flags:   []cli.Flag{flgAddr},
+			Flags:   []cli.Flag{flgAddr, flgTimeout},
 		},
 	}
 

@@ -33,7 +33,7 @@ type Advertisement struct {
 }
 
 type Client interface {
-	Connect(address string) error
+	Connect(address string, timeout time.Duration) error
 	Disconnect() error
 	WriteCharacteristic(uuid string, data []byte, noresp bool) error
 	Subscribe(uuid string, indication bool, f func([]byte)) error
