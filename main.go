@@ -25,14 +25,19 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
+	"github.com/rcaelers/nrf-dfu/ble"
 	"github.com/urfave/cli"
 	"gopkg.in/cheggaaa/pb.v2"
 )
 
 func cmdScan(c *cli.Context) error {
 	fmt.Printf("Scanning for BLE devices\n")
-	ble := NewBleClient()
-	err := ble.Scan(func(adv BleAdvertisement) {
+	bleClient, err := ble.NewClient()
+	if err != nil {
+		return errors.Wrap(err, "failed to client new BLE client")
+	}
+
+	err = bleClient.Scan(func(adv ble.Advertisement) {
 		info := ""
 		for _, v := range adv.Services {
 			if v == "fe59" {
@@ -52,10 +57,14 @@ func cmdPrepare(c *cli.Context) error {
 	}
 	fmt.Printf("Preparing for firmware upgrade of %s\n", addr)
 
-	ble := NewBleClient()
-	dfu := NewDfu(ble)
+	bleClient, err := ble.NewClient()
+	if err != nil {
+		return errors.Wrap(err, "failed to client new BLE client")
+	}
 
-	err := dfu.EnterBootloader(addr)
+	dfu := NewDfu(bleClient)
+
+	err = dfu.EnterBootloader(addr)
 	if err != nil {
 		return errors.Wrap(err, "failed to boot device into DFU mode")
 	}
@@ -85,12 +94,16 @@ func cmdDfu(c *cli.Context) error {
 
 	fmt.Printf("Upgrading firmware of %s with %s\n", addr, fw)
 
-	ble := NewBleClient()
-	dfu := NewDfu(ble)
+	bleClient, err := ble.NewClient()
+	if err != nil {
+		return errors.Wrap(err, "failed to client new BLE client")
+	}
+
+	dfu := NewDfu(bleClient)
 
 	bar := pb.ProgressBarTemplate(`{{ white "DFU:" }} {{bar . | green}} {{speed . "%s byte/s" | white }}`).Start(100)
 
-	err := dfu.Update(addr, fw, dfuProgress(bar))
+	err = dfu.Update(addr, fw, dfuProgress(bar))
 	if err != nil {
 		return errors.Wrap(err, "can't upgrade firmware")
 	}

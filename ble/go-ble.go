@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package ble
 
 import (
 	"context"
@@ -27,24 +27,10 @@ import (
 	"time"
 )
 
-type BleAdvertisementHandler func(adv BleAdvertisement)
-
-type BleAdvertisement struct {
-	Addr     string
-	Name     string
-	Services []string
-}
-
-type BleCentral interface {
-	Connect(address string) error
-	Disconnect() error
-	WriteCharacteristic(uuid string, data []byte, noresp bool) error
-	Subscribe(uuid string, indication bool, f func([]byte)) error
-	Unsubscribe(uuid string, indication bool) error
-	Scan(handler BleAdvertisementHandler) error
-}
+type GoBleInitFunc func() (ble.Device, error)
 
 type bleClient struct {
+	b         *bleClient
 	client    ble.Client
 	profile   *ble.Profile
 	connected bool
@@ -52,33 +38,23 @@ type bleClient struct {
 
 var currentDevice *ble.Device
 
-func NewBleClient() BleCentral {
+func NewGoBleClient(init GoBleInitFunc) (*bleClient, error) {
+	if currentDevice == nil {
+		device, err := init()
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create new BLE device")
+		}
+		ble.SetDefaultDevice(device)
+
+		currentDevice = &device
+	}
+
 	return &bleClient{
 		connected: false,
-	}
-}
-
-func (b *bleClient) init() (err error) {
-	if currentDevice != nil {
-		return nil
-	}
-
-	device, err := NewBleDevice()
-	if err != nil {
-		return errors.Wrap(err, "failed to create new BLE device")
-	}
-	ble.SetDefaultDevice(device)
-
-	currentDevice = &device
-	return err
+	}, nil
 }
 
 func (b *bleClient) Connect(address string) (err error) {
-	err = b.init()
-	if err != nil {
-		return errors.Wrap(err, "failed to initialize BLE device")
-	}
-
 	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(), 30*time.Second))
 
 	b.client, err = ble.Dial(ctx, ble.NewAddr(address))
@@ -152,26 +128,21 @@ func (b *bleClient) Unsubscribe(uuid string, indication bool) (err error) {
 	return
 }
 
-func handleAdvertisement(handler BleAdvertisementHandler) ble.AdvHandler {
+func (b *bleClient) handleAdvertisement(handler BleAdvertisementHandler) ble.AdvHandler {
 	return func(a ble.Advertisement) {
 		services := []string{}
 		for _, s := range a.Services() {
 			services = append(services, s.String())
 		}
 
-		handler(BleAdvertisement{Name: a.LocalName(), Addr: a.Addr().String(), Services: services})
+		handler(Advertisement{Name: a.LocalName(), Addr: a.Addr().String(), Services: services})
 	}
 }
 
 func (b *bleClient) Scan(handler BleAdvertisementHandler) (err error) {
-	err = b.init()
-	if err != nil {
-		return errors.Wrap(err, "failed to initialize BLE device")
-	}
-
 	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(), 30*time.Second))
 
-	err = ble.Scan(ctx, false, handleAdvertisement(handler), nil)
+	err = ble.Scan(ctx, false, b.handleAdvertisement(handler), nil)
 	if err != nil {
 		return errors.Wrap(err, "failed to start BLE scan")
 	}

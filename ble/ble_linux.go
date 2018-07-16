@@ -18,13 +18,17 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package ble
 
 import (
 	"github.com/go-ble/ble"
 	"github.com/go-ble/ble/linux"
 )
 
-func NewBleDevice() (d ble.Device, err error) {
+func newDevice() (ble.Device, error) {
 	return linux.NewDevice()
+}
+
+func NewClient() (b Client, err error) {
+	return NewGoBleClient(newDevice)
 }

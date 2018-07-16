@@ -30,12 +30,13 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rcaelers/nrf-dfu/ble"
 )
 
 type DfuProgress func(value int64, maxValue int64, info string)
 
 type Dfu struct {
-	ble             BleCentral
+	bleClient       ble.Client
 	responseChannel chan []byte
 
 	firmwareZipFile *zip.ReadCloser
@@ -99,16 +100,16 @@ type ChecksumResponse struct {
 	Crc32  uint32
 }
 
-func NewDfu(ble BleCentral) *Dfu {
+func NewDfu(bleClient ble.Client) *Dfu {
 	dfu := new(Dfu)
 	dfu.responseChannel = make(chan []byte)
-	dfu.ble = ble
+	dfu.bleClient = bleClient
 	return dfu
 }
 
 func (dfu *Dfu) sendControl(opcode dfuOperation, request []byte) (response []byte, err error) {
 	data := append([]byte{byte(opcode)}, request...)
-	err = dfu.ble.WriteCharacteristic(dfuControlPointUUID, data, false)
+	err = dfu.bleClient.WriteCharacteristic(dfuControlPointUUID, data, false)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to write to control characteristic")
 	}
@@ -143,7 +144,7 @@ func (dfu *Dfu) sendData(data []byte) error {
 			end = len(data)
 		}
 
-		err = dfu.ble.WriteCharacteristic(dfuPacketUUID, data[i:end], true)
+		err = dfu.bleClient.WriteCharacteristic(dfuPacketUUID, data[i:end], true)
 		if err != nil {
 			return errors.Wrap(err, "failed to write to packet characteristic")
 		}
@@ -328,19 +329,19 @@ func (dfu *Dfu) Update(address string, filename string, progress DfuProgress) er
 	}
 	defer dfu.firmwareZipFile.Close()
 
-	err = dfu.ble.Connect(address)
+	err = dfu.bleClient.Connect(address)
 	if err != nil {
 		return errors.Wrap(err, "failed to connect to device")
 	}
-	defer dfu.ble.Disconnect()
+	defer dfu.bleClient.Disconnect()
 
-	err = dfu.ble.Subscribe(dfuControlPointUUID, false, func(data []byte) {
+	err = dfu.bleClient.Subscribe(dfuControlPointUUID, false, func(data []byte) {
 		dfu.responseChannel <- data
 	})
 	if err != nil {
 		return errors.Wrap(err, "failed to subscribe to control characteristic")
 	}
-	defer dfu.ble.Unsubscribe(dfuControlPointUUID, false)
+	defer dfu.bleClient.Unsubscribe(dfuControlPointUUID, false)
 
 	dfu.progress = progress
 
@@ -360,20 +361,20 @@ func (dfu *Dfu) Update(address string, filename string, progress DfuProgress) er
 
 func (dfu *Dfu) EnterBootloader(address string) error {
 
-	err := dfu.ble.Connect(address)
+	err := dfu.bleClient.Connect(address)
 	if err != nil {
 		return errors.Wrap(err, "failed to connect to device")
 	}
-	defer dfu.ble.Disconnect()
+	defer dfu.bleClient.Disconnect()
 
-	err = dfu.ble.Subscribe(dfuButtonlessUUID, true, func(data []byte) {
+	err = dfu.bleClient.Subscribe(dfuButtonlessUUID, true, func(data []byte) {
 	})
 	if err != nil {
 		return errors.Wrap(err, "failed to subscribe to control characteristic")
 	}
 
 	data := []byte{0x01}
-	err = dfu.ble.WriteCharacteristic(dfuButtonlessUUID, data, true)
+	err = dfu.bleClient.WriteCharacteristic(dfuButtonlessUUID, data, true)
 	if err != nil {
 		return errors.Wrap(err, "failed to switch to bootloader")
 	}
