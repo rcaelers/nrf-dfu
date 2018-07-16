@@ -33,10 +33,30 @@ type Advertisement struct {
 }
 
 type Client interface {
-	Connect(address string, timeout time.Duration) error
+	Connect(address string, timeout time.Duration) (Peripheral, error)
+	Scan(duration time.Duration, handler AdvertisementHandler) error
+}
+
+type Peripheral interface {
 	Disconnect() error
+
+	FindService(uuid string) Service
+	FindCharacteristic(uuid string) Characteristic
+
 	WriteCharacteristic(uuid string, data []byte, noresp bool) error
 	Subscribe(uuid string, indication bool, f func([]byte)) error
 	Unsubscribe(uuid string, indication bool) error
-	Scan(duration time.Duration, handler AdvertisementHandler) error
+}
+
+type Service interface {
+	Uuid() string
+	FindCharacteristic(uuid string) Characteristic
+}
+
+type Characteristic interface {
+	Uuid() string
+
+	WriteCharacteristic(data []byte, noresp bool) error
+	Subscribe(indication bool, f func([]byte)) error
+	Unsubscribe(indication bool) error
 }

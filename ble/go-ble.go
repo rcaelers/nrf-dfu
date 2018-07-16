@@ -31,10 +31,22 @@ import (
 type GoBleInitFunc func() (ble.Device, error)
 
 type bleClient struct {
-	b         *bleClient
-	client    ble.Client
-	profile   *ble.Profile
-	connected bool
+	device *ble.Device
+}
+
+type blePeripheral struct {
+	client  ble.Client
+	profile *ble.Profile
+}
+
+type bleService struct {
+	client  ble.Client
+	service *ble.Service
+}
+
+type bleCharacteristic struct {
+	client         ble.Client
+	characteristic *ble.Characteristic
 }
 
 var currentDevice *ble.Device
@@ -50,94 +62,26 @@ func NewGoBleClient(init GoBleInitFunc) (*bleClient, error) {
 		currentDevice = &device
 	}
 
-	return &bleClient{
-		connected: false,
-	}, nil
+	return &bleClient{device: currentDevice}, nil
 }
 
-func (b *bleClient) Connect(address string, timeout time.Duration) (err error) {
+func (b *bleClient) Connect(address string, timeout time.Duration) (Peripheral, error) {
 	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(), timeout))
 
-	b.client, err = ble.Dial(ctx, ble.NewAddr(address))
+	client, err := ble.Dial(ctx, ble.NewAddr(address))
 	if err != nil {
-		return errors.Wrap(err, "failed to connect to device")
+		return nil, errors.Wrap(err, "failed to connect to device")
 	}
 
-	b.profile, err = b.client.DiscoverProfile(true)
+	profile, err := client.DiscoverProfile(true)
 	if err != nil {
-		return errors.Wrap(err, "failed to discover device profiles")
+		return nil, errors.Wrap(err, "failed to discover device profiles")
 	}
 
-	b.connected = true
-	return
-}
-
-func (b *bleClient) Disconnect() (err error) {
-	if !b.connected {
-		return errors.Wrap(err, "not connected")
-	}
-	b.client.CancelConnection()
-	b.connected = false
-	return
-}
-
-func (b *bleClient) WriteCharacteristic(uuid string, data []byte, noresp bool) (err error) {
-	if !b.connected {
-		return errors.Wrap(err, "not connected")
-	}
-
-	bleUuid, _ := ble.Parse(uuid)
-	if c := b.profile.Find(ble.NewCharacteristic(bleUuid)); c != nil {
-		err = b.client.WriteCharacteristic(c.(*ble.Characteristic), data, noresp)
-		if err != nil {
-			return errors.Wrap(err, "failed to write to BLE characteric")
-		}
-	}
-
-	return
-}
-
-func (b *bleClient) Subscribe(uuid string, indication bool, f func([]byte)) (err error) {
-	if !b.connected {
-		return errors.Wrap(err, "not connected")
-	}
-
-	bleUuid, _ := ble.Parse(uuid)
-	if c := b.profile.Find(ble.NewCharacteristic(bleUuid)); c != nil {
-		err = b.client.Subscribe(c.(*ble.Characteristic), indication, f)
-		if err != nil {
-			return errors.Wrap(err, "failed to subscribe to BLE characteric value changes")
-		}
-	}
-
-	return
-}
-
-func (b *bleClient) Unsubscribe(uuid string, indication bool) (err error) {
-	if !b.connected {
-		return errors.Wrap(err, "not connected")
-	}
-
-	bleUuid, _ := ble.Parse(uuid)
-	if c := b.profile.Find(ble.NewCharacteristic(bleUuid)); c != nil {
-		err = b.client.Unsubscribe(c.(*ble.Characteristic), indication)
-		if err != nil {
-			return errors.Wrap(err, "failed to unsubscribe to BLE characteris value changes")
-		}
-	}
-
-	return
-}
-
-func (b *bleClient) handleAdvertisement(handler AdvertisementHandler) ble.AdvHandler {
-	return func(a ble.Advertisement) {
-		services := []string{}
-		for _, s := range a.Services() {
-			services = append(services, s.String())
-		}
-
-		handler(Advertisement{Name: a.LocalName(), Addr: a.Addr().String(), Services: services})
-	}
+	return &blePeripheral{
+		client:  client,
+		profile: profile,
+	}, nil
 }
 
 func (b *bleClient) Scan(duration time.Duration, handler AdvertisementHandler) (err error) {
@@ -157,4 +101,128 @@ func (b *bleClient) Scan(duration time.Duration, handler AdvertisementHandler) (
 	}
 
 	return err
+}
+
+func (p *blePeripheral) Disconnect() (err error) {
+	p.client.CancelConnection()
+	return
+}
+
+func (p *blePeripheral) FindService(uuid string) Service {
+	bleUuid, _ := ble.Parse(uuid)
+	if s := p.profile.FindService(ble.NewService(bleUuid)); s != nil {
+		return &bleService{
+			client:  p.client,
+			service: s,
+		}
+	}
+	return nil
+}
+
+func (p *blePeripheral) FindCharacteristic(uuid string) Characteristic {
+	bleUuid, _ := ble.Parse(uuid)
+	if c := p.profile.FindCharacteristic(ble.NewCharacteristic(bleUuid)); c != nil {
+		return &bleCharacteristic{
+			client:         p.client,
+			characteristic: c,
+		}
+	}
+	return nil
+
+}
+
+func (p *blePeripheral) WriteCharacteristic(uuid string, data []byte, noresp bool) (err error) {
+	bleUuid, _ := ble.Parse(uuid)
+	if c := p.profile.Find(ble.NewCharacteristic(bleUuid)); c != nil {
+		err = p.client.WriteCharacteristic(c.(*ble.Characteristic), data, noresp)
+		if err != nil {
+			return errors.Wrap(err, "failed to write to BLE characteric")
+		}
+	}
+
+	return
+}
+
+func (p *blePeripheral) Subscribe(uuid string, indication bool, f func([]byte)) (err error) {
+	bleUuid, _ := ble.Parse(uuid)
+	if c := p.profile.Find(ble.NewCharacteristic(bleUuid)); c != nil {
+		err = p.client.Subscribe(c.(*ble.Characteristic), indication, f)
+		if err != nil {
+			return errors.Wrap(err, "failed to subscribe to BLE characteric value changes")
+		}
+	}
+
+	return
+}
+
+func (p *blePeripheral) Unsubscribe(uuid string, indication bool) (err error) {
+	bleUuid, _ := ble.Parse(uuid)
+	if c := p.profile.Find(ble.NewCharacteristic(bleUuid)); c != nil {
+		err = p.client.Unsubscribe(c.(*ble.Characteristic), indication)
+		if err != nil {
+			return errors.Wrap(err, "failed to unsubscribe to BLE characteris value changes")
+		}
+	}
+
+	return
+}
+
+func (s *bleService) Uuid() string {
+	return s.service.UUID.String()
+}
+
+func (s *bleService) FindCharacteristic(uuid string) Characteristic {
+	bleUuid, _ := ble.Parse(uuid)
+	refChar := ble.NewCharacteristic(bleUuid)
+	for _, c := range s.service.Characteristics {
+		if c.UUID.Equal(refChar.UUID) {
+			return &bleCharacteristic{
+				client:         s.client,
+				characteristic: c,
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *bleCharacteristic) Uuid() string {
+	return c.characteristic.UUID.String()
+}
+
+func (c *bleCharacteristic) WriteCharacteristic(data []byte, noresp bool) (err error) {
+	err = c.client.WriteCharacteristic(c.characteristic, data, noresp)
+	if err != nil {
+		return errors.Wrap(err, "failed to write to BLE characteric")
+	}
+	return
+}
+
+func (c *bleCharacteristic) Subscribe(indication bool, f func([]byte)) (err error) {
+	err = c.client.Subscribe(c.characteristic, indication, f)
+	if err != nil {
+		return errors.Wrap(err, "failed to subscribe to BLE characteric value changes")
+	}
+
+	return
+}
+
+func (c *bleCharacteristic) Unsubscribe(indication bool) (err error) {
+	err = c.client.Unsubscribe(c.characteristic, indication)
+	if err != nil {
+		return errors.Wrap(err, "failed to unsubscribe to BLE characteris value changes")
+	}
+
+	return
+}
+
+func (c *bleClient) handleAdvertisement(handler AdvertisementHandler) ble.AdvHandler {
+	return func(a ble.Advertisement) {
+		services := []string{}
+		for _, s := range a.Services() {
+			services = append(services, s.String())
+		}
+
+		handler(Advertisement{Name: a.LocalName(), Addr: a.Addr().String(), Services: services})
+	}
 }
