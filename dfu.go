@@ -35,6 +35,11 @@ import (
 
 type DfuProgress func(value int64, maxValue int64, info string)
 
+type FirmwareUpdater interface {
+	Update(address string, filename string, timeout time.Duration, progress DfuProgress) error
+	EnterBootloader(address string, timeout time.Duration) error
+}
+
 type Dfu struct {
 	bleClient       ble.Client
 	responseChannel chan []byte
@@ -100,7 +105,7 @@ type ChecksumResponse struct {
 	Crc32  uint32
 }
 
-func NewDfu(bleClient ble.Client) *Dfu {
+func NewDfu(bleClient ble.Client) FirmwareUpdater {
 	dfu := new(Dfu)
 	dfu.responseChannel = make(chan []byte)
 	dfu.bleClient = bleClient
