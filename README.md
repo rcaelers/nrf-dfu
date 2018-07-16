@@ -8,6 +8,7 @@ Tested on macOS with a SparkFun nRF52832 Breakout board.
 
 ### TODO
 
+- [ ] Create Go CoreBluetooth wrapper instead of go-ble on macOs
 - [X] Support unbonded buttonless bootloader
 - [X] Support bonded buttonless bootloader
 - [ ] Automatically boot device into DFU mode and perform upgrade
