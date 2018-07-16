@@ -139,8 +139,8 @@ func (b *bleClient) handleAdvertisement(handler BleAdvertisementHandler) ble.Adv
 	}
 }
 
-func (b *bleClient) Scan(handler BleAdvertisementHandler) (err error) {
-	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(), 30*time.Second))
+func (b *bleClient) Scan(duration time.Duration, handler BleAdvertisementHandler) (err error) {
+	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(), duration))
 
 	err = ble.Scan(ctx, false, b.handleAdvertisement(handler), nil)
 	if err != nil {

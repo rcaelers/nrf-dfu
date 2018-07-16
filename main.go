@@ -23,6 +23,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/rcaelers/nrf-dfu/ble"
@@ -37,7 +38,7 @@ func cmdScan(c *cli.Context) error {
 		return errors.Wrap(err, "failed to client new BLE client")
 	}
 
-	err = bleClient.Scan(func(adv ble.Advertisement) {
+	err = bleClient.Scan(c.Duration("duration"), func(adv ble.Advertisement) {
 		info := ""
 		for _, v := range adv.Services {
 			if v == "fe59" {
@@ -122,6 +123,7 @@ func main() {
 
 	flgAddr := cli.StringFlag{Name: "addr, a", Usage: "Address of device to be upgraded"}
 	flgFWFilenme := cli.StringFlag{Name: "fw, f", Usage: "Filename of the firmware archive"}
+	flgScanDuration := cli.DurationFlag{Name: "duration, d", Value: time.Second * 30, Usage: "Duration of the BLE scan"}
 
 	app.Commands = []cli.Command{
 		{
@@ -129,6 +131,7 @@ func main() {
 			Aliases: []string{"s"},
 			Usage:   "Scan for upgradable devices",
 			Action:  cmdScan,
+			Flags:   []cli.Flag{flgScanDuration},
 		},
 		{
 			Name:    "dfu",
