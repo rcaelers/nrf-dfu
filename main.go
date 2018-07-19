@@ -63,23 +63,15 @@ func cmdPrepare(c *cli.Context) error {
 		return errors.Wrap(err, "failed to client new BLE client")
 	}
 
-	dfu := NewDfu(bleClient)
+	dfu := NewDfu(bleClient, c.Duration("timeout"))
 
-	err = dfu.EnterBootloader(addr, c.Duration("timeout"))
+	dfu.SetDeviceAddress(addr)
+	err = dfu.EnterBootloader()
 	if err != nil {
 		return errors.Wrap(err, "failed to boot device into DFU mode")
 	}
 
 	return nil
-}
-
-func dfuProgress(bar *pb.ProgressBar) DfuProgress {
-	return func(value int64, maxValue int64, info string) {
-		if bar.Total() != maxValue {
-			bar.SetTotal(maxValue)
-		}
-		bar.SetCurrent(value)
-	}
 }
 
 func cmdDfu(c *cli.Context) error {
@@ -100,11 +92,21 @@ func cmdDfu(c *cli.Context) error {
 		return errors.Wrap(err, "failed to client new BLE client")
 	}
 
-	dfu := NewDfu(bleClient)
+	dfu := NewDfu(bleClient, c.Duration("timeout"))
+	dfu.SetDeviceAddress(addr)
 
-	bar := pb.ProgressBarTemplate(`{{ white "DFU:" }} {{bar . | green}} {{speed . "%s byte/s" | white }}`).Start(100)
+	var bar *pb.ProgressBar = nil
 
-	err = dfu.Update(addr, fw, c.Duration("timeout"), dfuProgress(bar))
+	err = dfu.Update(fw, func(value int64, maxValue int64, info string) {
+		if bar == nil {
+			bar = pb.ProgressBarTemplate(`{{ white "DFU:" }} {{bar . | green}} {{speed . "%s byte/s" | white }}`).Start(100)
+		}
+		if bar.Total() != maxValue {
+			bar.SetTotal(maxValue)
+		}
+		bar.SetCurrent(value)
+	})
+
 	if err != nil {
 		return errors.Wrap(err, "can't upgrade firmware")
 	}

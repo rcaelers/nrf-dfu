@@ -24,8 +24,10 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"hash/crc32"
 	"io/ioutil"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -36,15 +38,25 @@ import (
 type DfuProgress func(value int64, maxValue int64, info string)
 
 type FirmwareUpdater interface {
-	Update(address string, filename string, timeout time.Duration, progress DfuProgress) error
-	EnterBootloader(address string, timeout time.Duration) error
+	SetDeviceAddress(address string)
+	SetDeviceName(name string)
+	Update(filename string, progress DfuProgress) error
+	EnterBootloader() error
 }
 
 type Dfu struct {
 	client     ble.Client
 	peripheral ble.Peripheral
 
+	packet  ble.Characteristic
+	control ble.Characteristic
+	boot    ble.Characteristic
+
+	name            string
+	address         string
+	addressChange   bool
 	responseChannel chan []byte
+	timeout         time.Duration
 
 	firmwareZipFile *zip.ReadCloser
 	initDataFile    *zip.File
@@ -89,11 +101,11 @@ const (
 )
 
 const (
-	dfuServiceUUID          = "fe59"
-	dfuControlPointUUID     = "8ec90001-f315-4f60-9fb8-838830daea50"
-	dfuPacketUUID           = "8ec90002-f315-4f60-9fb8-838830daea50"
-	dfuButtonlessUUID       = "8ec90003-f315-4f60-9fb8-838830daea50"
-	dfuButtonlessBondedUUID = "8ec90004-f315-4f60-9fb8-838830daea50"
+	dfuServiceUUID            = "fe59"
+	dfuControlPointUUID       = "8ec90001-f315-4f60-9fb8-838830daea50"
+	dfuPacketUUID             = "8ec90002-f315-4f60-9fb8-838830daea50"
+	dfuButtonlessUnbondedUUID = "8ec90003-f315-4f60-9fb8-838830daea50"
+	dfuButtonlessBondedUUID   = "8ec90004-f315-4f60-9fb8-838830daea50"
 )
 
 type SelectResponse struct {
@@ -107,16 +119,17 @@ type ChecksumResponse struct {
 	Crc32  uint32
 }
 
-func NewDfu(bleClient ble.Client) FirmwareUpdater {
+func NewDfu(bleClient ble.Client, timeout time.Duration) FirmwareUpdater {
 	dfu := new(Dfu)
 	dfu.responseChannel = make(chan []byte)
 	dfu.client = bleClient
+	dfu.timeout = timeout
 	return dfu
 }
 
 func (dfu *Dfu) sendControl(opcode dfuOperation, request []byte) (response []byte, err error) {
 	data := append([]byte{byte(opcode)}, request...)
-	err = dfu.peripheral.WriteCharacteristic(dfuControlPointUUID, data, false)
+	err = dfu.control.WriteCharacteristic(data, false)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to write to control characteristic")
 	}
@@ -140,6 +153,61 @@ func (dfu *Dfu) sendControl(opcode dfuOperation, request []byte) (response []byt
 	return response[3:], err
 }
 
+func (dfu *Dfu) sendBoot(request []byte) (err error) {
+	err = dfu.boot.WriteCharacteristic(request, false)
+	if err != nil {
+		return errors.Wrap(err, "failed to set advertisment name")
+	}
+
+	response := <-dfu.responseChannel
+	responseCode := response[0]
+	responseOpCode := response[1]
+	resultCode := dfuResult(response[2])
+
+	if responseCode != 0x20 {
+		return errors.Wrap(err, "Received incorrect response code")
+	}
+	if responseOpCode != request[0] {
+		return errors.Wrap(err, "Received response for incorrect operation")
+	}
+	if resultCode != DFU_RESULT_SUCCESS {
+		return errors.Wrap(err, "DFU control operation failed")
+	}
+
+	return nil
+}
+
+func (dfu *Dfu) sendBootloaderAdvName(name string) error {
+	buf := bytes.NewBuffer([]byte{})
+	err := binary.Write(buf, binary.LittleEndian, byte(0x02))
+	if err != nil {
+		return errors.Wrap(err, "failed to write buffer")
+	}
+	err = binary.Write(buf, binary.LittleEndian, byte(len(name)))
+	if err != nil {
+		return errors.Wrap(err, "failed to write buffer")
+	}
+	err = binary.Write(buf, binary.LittleEndian, []byte(name))
+	if err != nil {
+		return errors.Wrap(err, "failed to write buffer")
+	}
+
+	err = dfu.sendBoot(buf.Bytes())
+	if err != nil {
+		return errors.Wrap(err, "failed to send bootloader advertisment name command")
+	}
+	return nil
+
+}
+
+func (dfu *Dfu) sendEnterBootloader() error {
+	err := dfu.sendBoot([]byte{0x01})
+	if err != nil {
+		return errors.Wrap(err, "failed to send enter bootloader command")
+	}
+	return nil
+}
+
 func (dfu *Dfu) sendData(data []byte) error {
 	var err error = nil
 	chunkSize := 20
@@ -151,7 +219,7 @@ func (dfu *Dfu) sendData(data []byte) error {
 			end = len(data)
 		}
 
-		err = dfu.peripheral.WriteCharacteristic(dfuPacketUUID, data[i:end], true)
+		err = dfu.packet.WriteCharacteristic(data[i:end], true)
 		if err != nil {
 			return errors.Wrap(err, "failed to write to packet characteristic")
 		}
@@ -274,7 +342,6 @@ func (dfu *Dfu) verifyCrc(data []byte, end int) error {
 }
 
 func (dfu *Dfu) transfer(objectType byte, file *zip.File) (err error) {
-
 	rc, err := file.Open()
 	if err != nil {
 		return errors.Wrap(err, "failed to open firmware archive")
@@ -329,28 +396,162 @@ func (dfu *Dfu) transfer(objectType byte, file *zip.File) (err error) {
 	return
 }
 
-func (dfu *Dfu) Update(address string, filename string, timeout time.Duration, progress DfuProgress) error {
-	err := dfu.readFirmwareArchive(filename)
-	if err != nil {
-		return errors.Wrap(err, "failed to open firmware file")
+func (dfu *Dfu) connect() (err error) {
+	if dfu.peripheral != nil {
 	}
-	defer dfu.firmwareZipFile.Close()
 
-	dfu.peripheral, err = dfu.client.Connect(address, timeout)
+	if dfu.address != "" {
+		dfu.peripheral, err = dfu.client.ConnectAddress(dfu.address, dfu.timeout)
+	} else {
+		dfu.peripheral, err = dfu.client.ConnectName(dfu.name, dfu.timeout)
+	}
+
 	if err != nil {
 		return errors.Wrap(err, "failed to connect to device")
 	}
-	defer dfu.peripheral.Disconnect()
 
-	err = dfu.peripheral.Subscribe(dfuControlPointUUID, false, func(data []byte) {
+	service := dfu.peripheral.FindService(dfuServiceUUID)
+	if service == nil {
+		return errors.Wrap(err, "DFU Service not found")
+	}
+
+	dfu.control = service.FindCharacteristic(dfuControlPointUUID)
+	dfu.packet = service.FindCharacteristic(dfuPacketUUID)
+
+	if dfu.control == nil || dfu.packet == nil {
+		dfu.addressChange = false
+		dfu.boot = service.FindCharacteristic(dfuButtonlessBondedUUID)
+		if dfu.boot == nil {
+			dfu.boot = service.FindCharacteristic(dfuButtonlessUnbondedUUID)
+			dfu.addressChange = true
+		}
+		if dfu.boot == nil {
+			return errors.Wrap(err, "No DFU characteristics found")
+		}
+	}
+
+	return nil
+}
+
+func (dfu *Dfu) disconnect() {
+	if dfu.peripheral != nil {
+		peripheral := dfu.peripheral
+
+		dfu.peripheral = nil
+		dfu.control = nil
+		dfu.packet = nil
+		dfu.boot = nil
+
+		peripheral.Disconnect()
+	}
+}
+
+func (dfu *Dfu) generateDeviceName() {
+	const letterBytes = "abcdefghijklmnopqrstuvwxyz"
+
+	b := make([]byte, 10)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+
+	dfu.name = "Dfu" + string(b)
+	dfu.address = ""
+}
+
+func (dfu *Dfu) enterBootloader() error {
+	rebooted := false
+	err := dfu.boot.Subscribe(true, func(data []byte) {
+		dfu.responseChannel <- data
+	})
+	defer func() {
+		if !rebooted {
+			dfu.boot.Unsubscribe(true)
+		}
+	}()
+
+	if err != nil {
+		return errors.Wrap(err, "failed to subscribe to control characteristic")
+	}
+	err = dfu.boot.Subscribe(false, func(data []byte) {
 		dfu.responseChannel <- data
 	})
 	if err != nil {
 		return errors.Wrap(err, "failed to subscribe to control characteristic")
 	}
-	defer dfu.peripheral.Unsubscribe(dfuControlPointUUID, false)
+	defer func() {
+		if !rebooted {
+			dfu.boot.Unsubscribe(false)
+		}
+	}()
+
+	if dfu.addressChange {
+		dfu.generateDeviceName()
+		fmt.Printf("Changing bootloader advertisment name to %s\n", dfu.name)
+		err = dfu.sendBootloaderAdvName(dfu.name)
+		if err != nil {
+			return errors.Wrap(err, "failed to set bootloaer advertisment name")
+		}
+	}
+
+	err = dfu.sendEnterBootloader()
+	if err != nil {
+		return errors.Wrap(err, "failed to enter bootloader")
+	}
+	rebooted = true
+
+	return nil
+}
+
+func (dfu *Dfu) SetDeviceAddress(address string) {
+	dfu.address = address
+	dfu.name = ""
+}
+
+func (dfu *Dfu) SetDeviceName(name string) {
+	dfu.address = ""
+	dfu.name = name
+}
+
+func (dfu *Dfu) Update(filename string, progress DfuProgress) error {
+	err := dfu.connect()
+	if err != nil {
+		return errors.Wrap(err, "failed to connect to peripheral")
+	}
+	defer dfu.disconnect()
+
+	if dfu.control == nil || dfu.packet == nil {
+		fmt.Println("DFU Characteristic not found. Attempting to reboot device.")
+		err = dfu.enterBootloader()
+		if err != nil {
+			return errors.Wrap(err, "failed to enter bootloader")
+		}
+		if dfu.addressChange {
+			// TODO: Why is this sleep needed after waiting for notifications?
+			time.Sleep(500 * time.Millisecond)
+			fmt.Println("Reconnecting to peripheral")
+			err = dfu.connect()
+			if err != nil {
+				return errors.Wrap(err, "failed to reconnect")
+			}
+			fmt.Printf("Connected to %s\n", dfu.peripheral.Addr())
+		}
+	}
+
+	err = dfu.control.Subscribe(false, func(data []byte) {
+		dfu.responseChannel <- data
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to subscribe to control characteristic")
+	}
+	defer dfu.control.Unsubscribe(false)
 
 	dfu.progress = progress
+
+	err = dfu.readFirmwareArchive(filename)
+	if err != nil {
+		return errors.Wrap(err, "failed to open firmware file")
+	}
+	defer dfu.firmwareZipFile.Close()
 
 	err = dfu.transfer(0x01, dfu.initDataFile)
 	if err != nil {
@@ -363,66 +564,25 @@ func (dfu *Dfu) Update(address string, filename string, timeout time.Duration, p
 	}
 
 	return err
-
 }
 
-func (dfu *Dfu) EnterBootloader(address string, timeout time.Duration) error {
-
-	peripheral, err := dfu.client.Connect(address, timeout)
+func (dfu *Dfu) EnterBootloader() error {
+	err := dfu.connect()
 	if err != nil {
-		return errors.Wrap(err, "failed to connect to device")
+		return errors.Wrap(err, "failed to connect to peripheral")
 	}
-	dfu.peripheral = peripheral
-	defer dfu.peripheral.Disconnect()
+	defer dfu.disconnect()
 
-	service := peripheral.FindService(dfuServiceUUID)
-	if service == nil {
-		return errors.Wrap(err, "DFU Service not found")
+	if dfu.control != nil && dfu.packet != nil {
+		fmt.Println("Bootloader already active.")
+	} else {
+		err = dfu.enterBootloader()
+		if err != nil {
+			return errors.Wrap(err, "failed to enter bootloader")
+		}
+
+		// TODO: Hack to wait for reponse...
+		time.Sleep(500 * time.Millisecond)
 	}
-
-	characteristic := service.FindCharacteristic(dfuButtonlessBondedUUID)
-	if characteristic == nil {
-		characteristic = service.FindCharacteristic(dfuButtonlessUUID)
-	}
-	if characteristic == nil {
-		return errors.Wrap(err, "DFU Characteristic not found")
-	}
-
-	responseChannel := make(chan []byte)
-
-	err = characteristic.Subscribe(true, func(data []byte) {
-		responseChannel <- data
-	})
-	if err != nil {
-		return errors.Wrap(err, "failed to subscribe to control characteristic")
-	}
-
-	data := []byte{0x01}
-	// TODO: this should be WITH reponse, but the buttonless bootloader service doesn't accept it...
-	err = characteristic.WriteCharacteristic(data, true)
-	if err != nil {
-		return errors.Wrap(err, "failed to switch to bootloader")
-	}
-
-	/* TODO: Requires sending with reponse
-	response := <-responseChannel
-	responseCode := response[0]
-	responseOpCode := response[1]
-	resultCode := dfuResult(response[2])
-
-	if responseCode != 0x20 {
-		return errors.Wrap(err, "Received incorrect response code")
-	}
-	if responseOpCode != 0x01 {
-		return errors.Wrap(err, "Received response for incorrect operation")
-	}
-	if resultCode != DFU_RESULT_SUCCESS {
-		return errors.Wrap(err, "DFU control operation failed")
-	}
-	*/
-
-	// TODO: Hack to wait for reponse...
-	time.Sleep(500 * time.Millisecond)
-
 	return err
 }

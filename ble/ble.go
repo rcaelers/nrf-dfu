@@ -33,11 +33,14 @@ type Advertisement struct {
 }
 
 type Client interface {
-	Connect(address string, timeout time.Duration) (Peripheral, error)
+	ConnectName(name string, timeout time.Duration) (Peripheral, error)
+	ConnectAddress(address string, timeout time.Duration) (Peripheral, error)
 	Scan(duration time.Duration, handler AdvertisementHandler) error
 }
 
 type Peripheral interface {
+	Addr() string
+
 	Disconnect() error
 
 	FindService(uuid string) Service

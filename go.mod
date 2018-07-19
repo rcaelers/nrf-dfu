@@ -2,7 +2,7 @@ module github.com/rcaelers/nrf-dfu
 
 require (
 	github.com/davecgh/go-spew v1.1.0 // indirect
-	github.com/go-ble/ble v0.0.0-20180524114937-7370f1c5787e
+	github.com/go-ble/ble v0.0.0-20180718090407-11b1dad1df3d
 	github.com/mattn/go-colorable v0.0.9 // indirect
 	github.com/mattn/go-isatty v0.0.3 // indirect
 	github.com/mattn/go-runewidth v0.0.2 // indirect
@@ -11,6 +11,7 @@ require (
 	github.com/pkg/errors v0.8.0
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/raff/goble v0.0.0-20180208224917-efeac611681b
+	github.com/rcaelers/go-ble v0.0.0-20180714212123-cefbcc1430ae
 	github.com/stretchr/testify v1.2.2 // indirect
 	github.com/urfave/cli v1.20.0
 	golang.org/x/sys v0.0.0-20180707002001-3c6ecd8f22c6
@@ -23,4 +24,4 @@ require (
 	gopkg.in/mattn/go-runewidth.v0 v0.0.2 // indirect
 )
 
-replace github.com/go-ble/ble v0.0.0-20180524114937-7370f1c5787e => github.com/rcaelers/go-ble v0.0.0-20180524114937-cefbcc1430aec4918146d6587fb0693e481bcf69
+replace github.com/go-ble/ble v0.0.0-20180718090407-11b1dad1df3d => github.com/rcaelers/go-ble v0.0.0-20180714212123-cefbcc1430ae

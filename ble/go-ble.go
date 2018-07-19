@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"github.com/go-ble/ble"
 	"github.com/pkg/errors"
+	"strings"
 	"time"
 )
 
@@ -35,6 +36,7 @@ type bleClient struct {
 }
 
 type blePeripheral struct {
+	address string
 	client  ble.Client
 	profile *ble.Profile
 }
@@ -65,7 +67,32 @@ func NewGoBleClient(init GoBleInitFunc) (*bleClient, error) {
 	return &bleClient{device: currentDevice}, nil
 }
 
-func (b *bleClient) Connect(address string, timeout time.Duration) (Peripheral, error) {
+func (b *bleClient) ConnectName(name string, timeout time.Duration) (Peripheral, error) {
+
+	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(), timeout))
+
+	client, err := ble.Connect(ctx, func(a ble.Advertisement) bool {
+		return strings.ToLower(a.LocalName()) == strings.ToLower(name)
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to connect to device")
+	}
+
+	addr := client.Addr()
+
+	profile, err := client.DiscoverProfile(true)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to discover device profiles")
+	}
+
+	return &blePeripheral{
+		address: addr.String(),
+		client:  client,
+		profile: profile,
+	}, nil
+}
+
+func (b *bleClient) ConnectAddress(address string, timeout time.Duration) (Peripheral, error) {
 	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(), timeout))
 
 	client, err := ble.Dial(ctx, ble.NewAddr(address))
@@ -79,6 +106,7 @@ func (b *bleClient) Connect(address string, timeout time.Duration) (Peripheral, 
 	}
 
 	return &blePeripheral{
+		address: address,
 		client:  client,
 		profile: profile,
 	}, nil
@@ -106,6 +134,10 @@ func (b *bleClient) Scan(duration time.Duration, handler AdvertisementHandler) (
 func (p *blePeripheral) Disconnect() (err error) {
 	p.client.CancelConnection()
 	return
+}
+
+func (p *blePeripheral) Addr() string {
+	return p.address
 }
 
 func (p *blePeripheral) FindService(uuid string) Service {

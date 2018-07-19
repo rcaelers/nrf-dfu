@@ -2,6 +2,8 @@ github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/go-ble/ble v0.0.0-20180524114937-7370f1c5787e h1:k1a1nwuRdXx61LHnX/en3zPmAEhk4RPgEuxxQSLtWbE=
 github.com/go-ble/ble v0.0.0-20180524114937-7370f1c5787e/go.mod h1:UMPB54/KFpdTdfH7Yovhk3J6kzgzE88e3QZi8cbayis=
+github.com/go-ble/ble v0.0.0-20180718090407-11b1dad1df3d h1:VDFpt6rbTHTX98/sdDwmbPfbvWdsJQUOSrcg4NlKI+g=
+github.com/go-ble/ble v0.0.0-20180718090407-11b1dad1df3d/go.mod h1:UMPB54/KFpdTdfH7Yovhk3J6kzgzE88e3QZi8cbayis=
 github.com/mattn/go-colorable v0.0.9 h1:UVL0vNpWh04HeJXV0KLcaT7r06gOH2l4OW6ddYRUIY4=
 github.com/mattn/go-colorable v0.0.9/go.mod h1:9vuHe8Xs5qXnSaW/c/ABM9alt+Vo+STaOChaDxuIBZU=
 github.com/mattn/go-isatty v0.0.3 h1:ns/ykhmWi7G9O+8a448SecJU3nSMBXJfqQkl0upE1jI=
@@ -22,6 +24,8 @@ github.com/rcaelers/ble v0.0.0-20180524114937-7370f1c5787e/go.mod h1:SoQM56jqO86
 github.com/rcaelers/go-ble v0.0.0-20180524114937-7370f1c5787e/go.mod h1:JZDOAZPw/l4WZhI1DBXpls830LQso58rDpRbf/3Jcis=
 github.com/rcaelers/go-ble v0.0.0-20180524114937-cefbcc1430aec4918146d6587fb0693e481bcf69 h1:Pqz4qV5fVr1xrM4CFRW45j++8gOK0D8gaylFdGGJZos=
 github.com/rcaelers/go-ble v0.0.0-20180524114937-cefbcc1430aec4918146d6587fb0693e481bcf69/go.mod h1:JZDOAZPw/l4WZhI1DBXpls830LQso58rDpRbf/3Jcis=
+github.com/rcaelers/go-ble v0.0.0-20180714212123-cefbcc1430ae h1:BsoOzIFOR+CelnuzgAkqehbe7guRZiMUcBzBLxoEtFw=
+github.com/rcaelers/go-ble v0.0.0-20180714212123-cefbcc1430ae/go.mod h1:JZDOAZPw/l4WZhI1DBXpls830LQso58rDpRbf/3Jcis=
 github.com/stretchr/testify v1.2.2 h1:bSDNvY7ZPG5RlJ8otE/7V6gMiyenm9RtJ7IUVIAoJ1w=
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/urfave/cli v1.20.0 h1:fDqGv3UG/4jbVl/QkFwEdddtEDjh/5Ov6X+0B/3bPaw=
