@@ -163,10 +163,20 @@ func (p *blePeripheral) FindCharacteristic(uuid string) Characteristic {
 
 }
 
-func (p *blePeripheral) WriteCharacteristic(uuid string, data []byte, noresp bool) (err error) {
+func writeCharacteristicTypeToBool(writeType WriteCharacteristicType) bool {
+	switch writeType {
+	case NoResponse:
+		return true
+	case WithResponse:
+		return false
+	}
+	return false
+}
+
+func (p *blePeripheral) WriteCharacteristic(uuid string, data []byte, writeType WriteCharacteristicType) (err error) {
 	bleUuid, _ := ble.Parse(uuid)
 	if c := p.profile.Find(ble.NewCharacteristic(bleUuid)); c != nil {
-		err = p.client.WriteCharacteristic(c.(*ble.Characteristic), data, noresp)
+		err = p.client.WriteCharacteristic(c.(*ble.Characteristic), data, writeCharacteristicTypeToBool(writeType))
 		if err != nil {
 			return errors.Wrap(err, "failed to write to BLE characteric")
 		}
@@ -175,10 +185,20 @@ func (p *blePeripheral) WriteCharacteristic(uuid string, data []byte, noresp boo
 	return
 }
 
-func (p *blePeripheral) Subscribe(uuid string, indication bool, f func([]byte)) (err error) {
+func subscriptionTypeToBool(subType SubscriptionType) bool {
+	switch subType {
+	case SubscriptionTypeNotification:
+		return false
+	case SubscriptionTypeIndication:
+		return true
+	}
+	return false
+}
+
+func (p *blePeripheral) Subscribe(uuid string, subType SubscriptionType, f func([]byte)) (err error) {
 	bleUuid, _ := ble.Parse(uuid)
 	if c := p.profile.Find(ble.NewCharacteristic(bleUuid)); c != nil {
-		err = p.client.Subscribe(c.(*ble.Characteristic), indication, f)
+		err = p.client.Subscribe(c.(*ble.Characteristic), subscriptionTypeToBool(subType), f)
 		if err != nil {
 			return errors.Wrap(err, "failed to subscribe to BLE characteric value changes")
 		}
@@ -187,10 +207,10 @@ func (p *blePeripheral) Subscribe(uuid string, indication bool, f func([]byte)) 
 	return
 }
 
-func (p *blePeripheral) Unsubscribe(uuid string, indication bool) (err error) {
+func (p *blePeripheral) Unsubscribe(uuid string, subType SubscriptionType) (err error) {
 	bleUuid, _ := ble.Parse(uuid)
 	if c := p.profile.Find(ble.NewCharacteristic(bleUuid)); c != nil {
-		err = p.client.Unsubscribe(c.(*ble.Characteristic), indication)
+		err = p.client.Unsubscribe(c.(*ble.Characteristic), subscriptionTypeToBool(subType))
 		if err != nil {
 			return errors.Wrap(err, "failed to unsubscribe to BLE characteris value changes")
 		}
@@ -222,16 +242,16 @@ func (c *bleCharacteristic) Uuid() string {
 	return c.characteristic.UUID.String()
 }
 
-func (c *bleCharacteristic) WriteCharacteristic(data []byte, noresp bool) (err error) {
-	err = c.client.WriteCharacteristic(c.characteristic, data, noresp)
+func (c *bleCharacteristic) WriteCharacteristic(data []byte, writeType WriteCharacteristicType) (err error) {
+	err = c.client.WriteCharacteristic(c.characteristic, data, writeCharacteristicTypeToBool(writeType))
 	if err != nil {
 		return errors.Wrap(err, "failed to write to BLE characteric")
 	}
 	return
 }
 
-func (c *bleCharacteristic) Subscribe(indication bool, f func([]byte)) (err error) {
-	err = c.client.Subscribe(c.characteristic, indication, f)
+func (c *bleCharacteristic) Subscribe(subType SubscriptionType, f func([]byte)) (err error) {
+	err = c.client.Subscribe(c.characteristic, subscriptionTypeToBool(subType), f)
 	if err != nil {
 		return errors.Wrap(err, "failed to subscribe to BLE characteric value changes")
 	}
@@ -239,8 +259,8 @@ func (c *bleCharacteristic) Subscribe(indication bool, f func([]byte)) (err erro
 	return
 }
 
-func (c *bleCharacteristic) Unsubscribe(indication bool) (err error) {
-	err = c.client.Unsubscribe(c.characteristic, indication)
+func (c *bleCharacteristic) Unsubscribe(subType SubscriptionType) (err error) {
+	err = c.client.Unsubscribe(c.characteristic, subscriptionTypeToBool(subType))
 	if err != nil {
 		return errors.Wrap(err, "failed to unsubscribe to BLE characteris value changes")
 	}

@@ -32,6 +32,20 @@ type Advertisement struct {
 	Services []string
 }
 
+type WriteCharacteristicType byte
+
+const (
+	NoResponse   WriteCharacteristicType = 1
+	WithResponse WriteCharacteristicType = 2
+)
+
+type SubscriptionType byte
+
+const (
+	SubscriptionTypeNotification SubscriptionType = 1
+	SubscriptionTypeIndication   SubscriptionType = 2
+)
+
 type Client interface {
 	ConnectName(name string, timeout time.Duration) (Peripheral, error)
 	ConnectAddress(address string, timeout time.Duration) (Peripheral, error)
@@ -46,9 +60,9 @@ type Peripheral interface {
 	FindService(uuid string) Service
 	FindCharacteristic(uuid string) Characteristic
 
-	WriteCharacteristic(uuid string, data []byte, noresp bool) error
-	Subscribe(uuid string, indication bool, f func([]byte)) error
-	Unsubscribe(uuid string, indication bool) error
+	WriteCharacteristic(uuid string, data []byte, resp WriteCharacteristicType) error
+	Subscribe(uuid string, subType SubscriptionType, callback func([]byte)) error
+	Unsubscribe(uuid string, subType SubscriptionType) error
 }
 
 type Service interface {
@@ -59,7 +73,7 @@ type Service interface {
 type Characteristic interface {
 	Uuid() string
 
-	WriteCharacteristic(data []byte, noresp bool) error
-	Subscribe(indication bool, f func([]byte)) error
-	Unsubscribe(indication bool) error
+	WriteCharacteristic(data []byte, resp WriteCharacteristicType) error
+	Subscribe(subType SubscriptionType, f func([]byte)) error
+	Unsubscribe(subType SubscriptionType) error
 }

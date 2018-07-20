@@ -129,7 +129,7 @@ func NewDfu(bleClient ble.Client, timeout time.Duration) FirmwareUpdater {
 
 func (dfu *Dfu) sendControl(opcode dfuOperation, request []byte) (response []byte, err error) {
 	data := append([]byte{byte(opcode)}, request...)
-	err = dfu.control.WriteCharacteristic(data, false)
+	err = dfu.control.WriteCharacteristic(data, ble.WithResponse)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to write to control characteristic")
 	}
@@ -154,7 +154,7 @@ func (dfu *Dfu) sendControl(opcode dfuOperation, request []byte) (response []byt
 }
 
 func (dfu *Dfu) sendBoot(request []byte) (err error) {
-	err = dfu.boot.WriteCharacteristic(request, false)
+	err = dfu.boot.WriteCharacteristic(request, ble.WithResponse)
 	if err != nil {
 		return errors.Wrap(err, "failed to set advertisment name")
 	}
@@ -219,7 +219,7 @@ func (dfu *Dfu) sendData(data []byte) error {
 			end = len(data)
 		}
 
-		err = dfu.packet.WriteCharacteristic(data[i:end], true)
+		err = dfu.packet.WriteCharacteristic(data[i:end], ble.NoResponse)
 		if err != nil {
 			return errors.Wrap(err, "failed to write to packet characteristic")
 		}
@@ -460,19 +460,19 @@ func (dfu *Dfu) generateDeviceName() {
 
 func (dfu *Dfu) enterBootloader() error {
 	rebooted := false
-	err := dfu.boot.Subscribe(true, func(data []byte) {
+	err := dfu.boot.Subscribe(ble.SubscriptionTypeIndication, func(data []byte) {
 		dfu.responseChannel <- data
 	})
 	defer func() {
 		if !rebooted {
-			dfu.boot.Unsubscribe(true)
+			dfu.boot.Unsubscribe(ble.SubscriptionTypeIndication)
 		}
 	}()
 
 	if err != nil {
 		return errors.Wrap(err, "failed to subscribe to control characteristic")
 	}
-	err = dfu.boot.Subscribe(false, func(data []byte) {
+	err = dfu.boot.Subscribe(ble.SubscriptionTypeNotification, func(data []byte) {
 		dfu.responseChannel <- data
 	})
 	if err != nil {
@@ -480,7 +480,7 @@ func (dfu *Dfu) enterBootloader() error {
 	}
 	defer func() {
 		if !rebooted {
-			dfu.boot.Unsubscribe(false)
+			dfu.boot.Unsubscribe(ble.SubscriptionTypeNotification)
 		}
 	}()
 
@@ -537,13 +537,13 @@ func (dfu *Dfu) Update(filename string, progress DfuProgress) error {
 		}
 	}
 
-	err = dfu.control.Subscribe(false, func(data []byte) {
+	err = dfu.control.Subscribe(ble.SubscriptionTypeNotification, func(data []byte) {
 		dfu.responseChannel <- data
 	})
 	if err != nil {
 		return errors.Wrap(err, "failed to subscribe to control characteristic")
 	}
-	defer dfu.control.Unsubscribe(false)
+	defer dfu.control.Unsubscribe(ble.SubscriptionTypeNotification)
 
 	dfu.progress = progress
 
