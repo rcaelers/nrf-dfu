@@ -22,7 +22,6 @@ package ble
 
 import (
 	"context"
-	"fmt"
 	"github.com/go-ble/ble"
 	"github.com/pkg/errors"
 	"strings"
@@ -75,14 +74,14 @@ func (b *bleClient) ConnectName(name string, timeout time.Duration) (Peripheral,
 		return strings.ToLower(a.LocalName()) == strings.ToLower(name)
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to connect to device")
+		return nil, errors.Wrap(err, "failed to connect to BLE peripheral")
 	}
 
 	addr := client.Addr()
 
 	profile, err := client.DiscoverProfile(true)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to discover device profiles")
+		return nil, errors.Wrap(err, "failed to discover profiles")
 	}
 
 	return &blePeripheral{
@@ -97,12 +96,12 @@ func (b *bleClient) ConnectAddress(address string, timeout time.Duration) (Perip
 
 	client, err := ble.Dial(ctx, ble.NewAddr(address))
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to connect to device")
+		return nil, errors.Wrap(err, "failed to connect to BLE peripheral")
 	}
 
 	profile, err := client.DiscoverProfile(true)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to discover device profiles")
+		return nil, errors.Wrap(err, "failed to discover profiles")
 	}
 
 	return &blePeripheral{
@@ -116,17 +115,6 @@ func (b *bleClient) Scan(duration time.Duration, handler AdvertisementHandler) (
 	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(), duration))
 
 	err = ble.Scan(ctx, false, b.handleAdvertisement(handler), nil)
-
-	switch errors.Cause(err) {
-	case context.DeadlineExceeded:
-		return nil
-	case context.Canceled:
-		fmt.Printf("Canceled..\n")
-		return nil
-	}
-	if err != nil {
-		return errors.Wrap(err, "failed to start BLE scan")
-	}
 
 	return err
 }
@@ -178,7 +166,7 @@ func (p *blePeripheral) WriteCharacteristic(uuid string, data []byte, writeType 
 	if c := p.profile.Find(ble.NewCharacteristic(bleUuid)); c != nil {
 		err = p.client.WriteCharacteristic(c.(*ble.Characteristic), data, writeCharacteristicTypeToBool(writeType))
 		if err != nil {
-			return errors.Wrap(err, "failed to write to BLE characteric")
+			return errors.Wrap(err, "failed to write to BLE characteristic")
 		}
 	}
 
@@ -200,7 +188,7 @@ func (p *blePeripheral) Subscribe(uuid string, subType SubscriptionType, f func(
 	if c := p.profile.Find(ble.NewCharacteristic(bleUuid)); c != nil {
 		err = p.client.Subscribe(c.(*ble.Characteristic), subscriptionTypeToBool(subType), f)
 		if err != nil {
-			return errors.Wrap(err, "failed to subscribe to BLE characteric value changes")
+			return errors.Wrap(err, "failed to subscribe to BLE characteristic value changes")
 		}
 	}
 
@@ -212,7 +200,7 @@ func (p *blePeripheral) Unsubscribe(uuid string, subType SubscriptionType) (err 
 	if c := p.profile.Find(ble.NewCharacteristic(bleUuid)); c != nil {
 		err = p.client.Unsubscribe(c.(*ble.Characteristic), subscriptionTypeToBool(subType))
 		if err != nil {
-			return errors.Wrap(err, "failed to unsubscribe to BLE characteris value changes")
+			return errors.Wrap(err, "failed to unsubscribe to BLE characteristic value changes")
 		}
 	}
 
@@ -245,7 +233,7 @@ func (c *bleCharacteristic) Uuid() string {
 func (c *bleCharacteristic) WriteCharacteristic(data []byte, writeType WriteCharacteristicType) (err error) {
 	err = c.client.WriteCharacteristic(c.characteristic, data, writeCharacteristicTypeToBool(writeType))
 	if err != nil {
-		return errors.Wrap(err, "failed to write to BLE characteric")
+		return errors.Wrap(err, "failed to write to BLE characteristic")
 	}
 	return
 }
@@ -253,7 +241,7 @@ func (c *bleCharacteristic) WriteCharacteristic(data []byte, writeType WriteChar
 func (c *bleCharacteristic) Subscribe(subType SubscriptionType, f func([]byte)) (err error) {
 	err = c.client.Subscribe(c.characteristic, subscriptionTypeToBool(subType), f)
 	if err != nil {
-		return errors.Wrap(err, "failed to subscribe to BLE characteric value changes")
+		return errors.Wrap(err, "failed to subscribe to BLE characteristic value changes")
 	}
 
 	return
@@ -262,7 +250,7 @@ func (c *bleCharacteristic) Subscribe(subType SubscriptionType, f func([]byte)) 
 func (c *bleCharacteristic) Unsubscribe(subType SubscriptionType) (err error) {
 	err = c.client.Unsubscribe(c.characteristic, subscriptionTypeToBool(subType))
 	if err != nil {
-		return errors.Wrap(err, "failed to unsubscribe to BLE characteris value changes")
+		return errors.Wrap(err, "failed to unsubscribe from BLE characteristic value changes")
 	}
 
 	return

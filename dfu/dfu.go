@@ -18,13 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package dfu
 
 import (
 	"archive/zip"
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"hash/crc32"
 	"io/ioutil"
 	"math/rand"
@@ -33,6 +32,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rcaelers/nrf-dfu/ble"
+	jww "github.com/spf13/jwalterweatherman"
 )
 
 type DfuProgress func(value int64, maxValue int64, info string)
@@ -397,12 +397,11 @@ func (dfu *Dfu) transfer(objectType byte, file *zip.File) (err error) {
 }
 
 func (dfu *Dfu) connect() (err error) {
-	if dfu.peripheral != nil {
-	}
-
 	if dfu.address != "" {
+		jww.INFO.Printf("Connecting to '%s'\n", dfu.address)
 		dfu.peripheral, err = dfu.client.ConnectAddress(dfu.address, dfu.timeout)
 	} else {
+		jww.INFO.Printf("Connecting to '%s'\n", dfu.name)
 		dfu.peripheral, err = dfu.client.ConnectName(dfu.name, dfu.timeout)
 	}
 
@@ -486,7 +485,7 @@ func (dfu *Dfu) enterBootloader() error {
 
 	if dfu.addressChange {
 		dfu.generateDeviceName()
-		fmt.Printf("Changing bootloader advertisment name to %s\n", dfu.name)
+		jww.INFO.Printf("Changing bootloader advertisment name to '%s'\n", dfu.name)
 		err = dfu.sendBootloaderAdvName(dfu.name)
 		if err != nil {
 			return errors.Wrap(err, "failed to set bootloaer advertisment name")
@@ -520,7 +519,7 @@ func (dfu *Dfu) Update(filename string, progress DfuProgress) error {
 	defer dfu.disconnect()
 
 	if dfu.control == nil || dfu.packet == nil {
-		fmt.Println("DFU Characteristic not found. Attempting to reboot device.")
+		jww.INFO.Println("DFU Characteristic not found. Attempting to reboot device.")
 		err = dfu.enterBootloader()
 		if err != nil {
 			return errors.Wrap(err, "failed to enter bootloader")
@@ -528,12 +527,12 @@ func (dfu *Dfu) Update(filename string, progress DfuProgress) error {
 		if dfu.addressChange {
 			// TODO: Why is this sleep needed after waiting for notifications?
 			time.Sleep(500 * time.Millisecond)
-			fmt.Println("Reconnecting to peripheral")
+			jww.INFO.Println("Reconnecting to peripheral")
 			err = dfu.connect()
 			if err != nil {
 				return errors.Wrap(err, "failed to reconnect")
 			}
-			fmt.Printf("Connected to %s\n", dfu.peripheral.Addr())
+			jww.INFO.Printf("Connected to %s\n", dfu.peripheral.Addr())
 		}
 	}
 
@@ -553,6 +552,8 @@ func (dfu *Dfu) Update(filename string, progress DfuProgress) error {
 	}
 	defer dfu.firmwareZipFile.Close()
 
+	jww.INFO.Println("Transferring firmware.")
+
 	err = dfu.transfer(0x01, dfu.initDataFile)
 	if err != nil {
 		return errors.Wrap(err, "failed to transfer init data")
@@ -563,7 +564,7 @@ func (dfu *Dfu) Update(filename string, progress DfuProgress) error {
 		return errors.Wrap(err, "failed to transfer firmware data")
 	}
 
-	return err
+	return nil
 }
 
 func (dfu *Dfu) EnterBootloader() error {
@@ -574,8 +575,9 @@ func (dfu *Dfu) EnterBootloader() error {
 	defer dfu.disconnect()
 
 	if dfu.control != nil && dfu.packet != nil {
-		fmt.Println("Bootloader already active.")
+		jww.INFO.Println("Bootloader already active.")
 	} else {
+		jww.INFO.Println("Switching to DFU mode.")
 		err = dfu.enterBootloader()
 		if err != nil {
 			return errors.Wrap(err, "failed to enter bootloader")
@@ -584,5 +586,5 @@ func (dfu *Dfu) EnterBootloader() error {
 		// TODO: Hack to wait for reponse...
 		time.Sleep(500 * time.Millisecond)
 	}
-	return err
+	return nil
 }
