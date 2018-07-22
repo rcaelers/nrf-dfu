@@ -448,6 +448,8 @@ func (dfu *Dfu) disconnect() {
 func (dfu *Dfu) generateDeviceName() {
 	const letterBytes = "abcdefghijklmnopqrstuvwxyz"
 
+	rand.Seed(time.Now().UTC().UnixNano())
+
 	b := make([]byte, 10)
 	for i := range b {
 		b[i] = letterBytes[rand.Intn(len(letterBytes))]
