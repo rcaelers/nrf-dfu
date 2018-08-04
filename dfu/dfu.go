@@ -420,9 +420,14 @@ func (dfu *Dfu) connect() (err error) {
 	if dfu.control == nil || dfu.packet == nil {
 		dfu.addressChange = false
 		dfu.boot = service.FindCharacteristic(dfuButtonlessBondedUUID)
-		if dfu.boot == nil {
+		if dfu.boot != nil {
+			jww.INFO.Printf("Using bonded buttonless bootloader.")
+		} else {
 			dfu.boot = service.FindCharacteristic(dfuButtonlessUnbondedUUID)
 			dfu.addressChange = true
+			if dfu.boot != nil {
+				jww.INFO.Printf("Using unbonded buttonless bootloader.")
+			}
 		}
 		if dfu.boot == nil {
 			return errors.Wrap(err, "No DFU characteristics found")
@@ -526,15 +531,24 @@ func (dfu *Dfu) Update(filename string, progress DfuProgress) error {
 		if err != nil {
 			return errors.Wrap(err, "failed to enter bootloader")
 		}
-		if dfu.addressChange {
-			// TODO: Why is this sleep needed after waiting for notifications?
-			time.Sleep(500 * time.Millisecond)
-			jww.INFO.Println("Reconnecting to peripheral")
+
+		tries := 5
+		jww.INFO.Println("Reconnecting to peripheral")
+		for {
 			err = dfu.connect()
 			if err != nil {
 				return errors.Wrap(err, "failed to reconnect")
 			}
-			jww.INFO.Printf("Connected to %s\n", dfu.peripheral.Addr())
+			if (dfu.control != nil && dfu.packet != nil) {
+				jww.INFO.Printf("Connected to %s\n", dfu.peripheral.Addr())
+				break
+			}
+			tries--
+			if tries == 0 {
+				jww.ERROR.Printf("Failed to connect to %s\n", dfu.peripheral.Addr())
+				break
+			}
+			time.Sleep(1000 * time.Millisecond)
 		}
 	}
 
