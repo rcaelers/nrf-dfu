@@ -34,9 +34,9 @@ import (
 type dfuCommand struct {
 	*baseCommand
 
-	timeout         time.Duration
-	address         string
-	firmwareFilenam string
+	timeout          time.Duration
+	address          string
+	firmwareFilename string
 }
 
 func newDfuCommand() *dfuCommand {
@@ -57,7 +57,7 @@ nrf-dfu dfu --address 4b668b2e16e41429fca7af1b0dc50644 --firmware FW.zip --timeo
 	})
 
 	c.cmd.Flags().DurationVarP(&c.timeout, "timeout", "t", 30*time.Second, "Timeout for connecting to device")
-	c.cmd.Flags().StringVarP(&c.firmwareFilenam, "firmware", "f", "", "Filename of the firmware archive")
+	c.cmd.Flags().StringVarP(&c.firmwareFilename, "firmware", "f", "", "Filename of the firmware archive")
 	c.cmd.Flags().StringVarP(&c.address, "address", "a", "", "Address of device to be upgraded")
 	return c
 }
@@ -66,11 +66,11 @@ func (c *dfuCommand) runDfu() error {
 	if c.address == "" {
 		return errors.New("No address specified. Use --addr to specify device address.")
 	}
-	if c.firmwareFilenam == "" {
+	if c.firmwareFilename == "" {
 		return errors.New("No firmware filename specified. Use --firmware to specify firmware archive filename.")
 	}
 
-	jww.INFO.Printf("Upgrading firmware of device '%s' with '%s'\n", c.address, c.firmwareFilenam)
+	jww.INFO.Printf("Upgrading firmware of device '%s' with '%s'\n", c.address, c.firmwareFilename)
 
 	bleClient, err := ble.NewClient()
 	if err != nil {
@@ -82,7 +82,7 @@ func (c *dfuCommand) runDfu() error {
 
 	var bar *pb.ProgressBar = nil
 
-	err = dfu.Update(c.firmwareFilenam, func(value int64, maxValue int64, info string) {
+	err = dfu.Update(c.firmwareFilename, func(value int64, maxValue int64, info string) {
 		if bar == nil {
 			bar = pb.ProgressBarTemplate(`{{ white "DFU:" }} {{bar . | green}} {{speed . "%s byte/s" | white }}`).Start(100)
 		}
