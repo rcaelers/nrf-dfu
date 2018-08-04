@@ -74,6 +74,9 @@ func NewCli() *Cli {
 		Short:   "A DFU tool for nRF modules",
 		Long:    `nrf-dfu is a tool to upload firmware to an nRF51 or nRF52 device.`,
 		Version: "0.1",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			c.InitLogging()
+		},
 	})
 
 	c.cmd.SilenceUsage = true
@@ -105,8 +108,6 @@ func (c *Cli) InitLogging() {
 }
 
 func (c *Cli) Execute() {
-	c.InitLogging()
-
 	if err := c.cmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
